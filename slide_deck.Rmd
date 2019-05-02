@@ -38,14 +38,16 @@ knitr::opts_chunk$set(echo=TRUE, eval=FALSE, message=FALSE, error=FALSE, warning
 
 ##
 
+<div style="align:center;">
 ![](workflow.png)
+</div>
 
 # Import
 
 ## Downloading the data
 
 ```{bash}
-# download, unzip, delete compmressed file
+# download, unzip, delete compressed file
 declare -a files=('auth.txt' 'proc.txt' 'flows.txt' 'dns.txt' 'redteam.txt')
 for f in "${files[@]}"
 do
@@ -106,7 +108,7 @@ do
 done
 ```
 
-## Normalizing the data: Data replacement
+## Normalizing the data: Data replacement (failed)
 
 ```{bash}
 # replace strings with index numbers
@@ -128,13 +130,52 @@ sort -k 2 -t , auth.txt \
 | sed -e "s/Success/1/g;s/Failure/0/g" > auth.csv
 ```
 
-## Storing the data: PostgreSQL installation
+## Normalizing the data: Data replacement (worked)
+
+```{r}
+df = read_csv(f, col_names=c('time', 'src_user_domain', 'dest_user_domain',
+                                     'src_comp', 'dest_comp', 'auth_type', 'logon_type',
+                                     'auth_orientation', 'success'))
+df = df %>%
+            left_join(user_domains, by=c('src_user_domain'='name')) %>%
+            select(-src_user_domain) %>%
+            rename(src_user_domain=id) %>%
+            # [truncated]
+            left_join(auth_orientation, by=c('auth_orientation'='name')) %>%
+            select(-auth_orientation) %>%
+            rename(auth_orientation=id) %>%
+            mutate(success = as.integer(success == 'Success'))
+```
 
 ## Storing the data: Table creation
 
-## Storing the data: Optimization
+```{sql}
+-- lookup table example
+CREATE TABLE auth_orientation(id int PRIMARY KEY, name varchar(15) NOT NULL);
 
-## Storing the data: Data access
+-- main table example
+CREATE TABLE flows(id serial, time int, duration int, protocol int, packet_count bigint,
+                   byte_count bigint, src_comp int, dest_comp int, src_port int, dest_port int,
+                   FOREIGN KEY (src_comp) REFERENCES computers(id),
+                   FOREIGN KEY (dest_comp) REFERENCES computers(id),
+                   FOREIGN KEY (src_port) REFERENCES ports(id),
+                   FOREIGN KEY (dest_port) REFERENCES ports(id));
+                   
+-- index example
+CREATE INDEX idx_flows_src_comp ON flows(src_comp);
+```
+
+## Accessing the data
+
+```{sql}
+-- must be in this order
+SELECT var1, var2, count(*), avg(var3), min(var4), max(var5)
+FROM table_name
+WHERE where_clause -- optional (filters the data)
+GROUP BY var1, var2 -- optional
+HAVING having_clause -- optional (filters the groups)
+ORDER BY var1, var2 desc -- optional
+```
 
 # Tidy
 
