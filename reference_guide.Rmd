@@ -1,0 +1,480 @@
+---
+title: "Converge 2019 Data Analytics Workshop Reference Guide"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo=TRUE, eval=FALSE)
+```
+
+# Introduction
+
+First and foremost, thank you for attending my workshop. I can't express enough how much I appreciate you coming. But with that being said, let's get down to business. This book is meant to serve as a supplement to the material you learned in the workshop, as well as a reference manual for while you're in here. It goes over some of the basic commands we used in all three of the programming languages we utilized: Bash, Git, SQL, and R. For each of those programming languages, it highlights some of the common commands that people use, giving a brief description and then generic syntax for how to use it. Each section then concludes with some examples from the workshop that will hopefully help you when you're querying your own data.
+
+It should go without saying, but I want to explicitly mention it anyway. This document is not meant to be an all-inclusive manual for any of the topics we covered in the workshop. Each topic could make up an entire book on their own. This is meant to simply be a reference guide for you both during the workshop and after. If you have any questions about any of the material that is or is not in the book, please feel free to reach out via email (potent_pwnables@protonmail.com) or Twitter (@potent_pwnables). Thanks again for coming to the workshop!
+
+# Command Line
+
+## Common Commands
+
+### View the contents of a file
+
+The cat command will print the contents of a file to the console for you to review. Be careful as this can be very overwhelming. It's typically used to pipe that data into another function.
+
+```{bash}
+cat some_file.txt
+```
+
+### Piping Commands
+
+There will be times where you want to perform several operations on a single piece of data. For example, say you have a CSV file that has IP addresses and you want to make a new file that removes any duplicates and saves the data in a sorted format. This is where the `|` (pipe) operator comes in. The following code prints the contents of the file, but instead of printing that to the screen, it gets piped into the `sort` command, which then pipes it into the `uniq` command.
+
+```{bash}
+cat my_file.csv | sort | uniq 
+```
+
+### Saving Output
+
+In the prior example, the final output, after it had be sorted and the duplicates removed, would print to the screen. If we want to instead save that into a file, we can use what is called output redirection. There are two ways to use output redirection to save a file: `>` and `>>`. Both of these approaches will create a file if the file you're saving to does not exist, but the former will overwrite any data that existed in the file if it did exist, whereas the latter will append the new data to the existing data. 
+
+Warning: Do not try to use output redirection to save to the same file that you're using in your operations because `>` will first empty the contents of the file before your analyses begin, resulting in you losing all of your data.
+
+```{bash}
+# overwrite the old file
+cat my_file.csv | sort | uniq > sorted.csv
+
+# append to the old file
+cat my_file.csv | sort | uniq >> sorted.csv
+
+# don't do this
+cat my_file.csv | sort | uniq > my_file.csv
+```
+
+### Create variables and print their values
+
+When creating variables, spaces around the equal sign are not allowed. And when calling a variable, the "$" symbol is used to signify that you're calling the variable instead of trying to use that text verbatim. Also worth noting is that variables are case sensitive.
+
+```{bash}
+my_var="some value"
+echo $my_var
+```
+
+### Create an array (a list of values)
+
+Creating an array is similar to creating a variable in that you have to give it a name, such as "my_var", and you then access that variable with `$my_var`. The difference is that you have to call the `declare` function, and then pass the `-a` flag to signal that it's an array. It's also very important to keep in mind that arrays are space delimited, not comma. So `("value 1", "value 2")` will not give you the right result.
+
+```{bash}
+declare -a my_var=('value 1' 'value 2' ... 'value N')
+```
+
+### If Statements
+
+If statements are a little trickier in Bash than they are in other programming languages. The first thing that can trip people up is the fact that there must be a space between the `[` and `]` symbols when writing the conditional. The other thing is that not all comparison operators are allowed. So, while you can check something like `10 = 5` and `10 != 5`, you can't check something like `10 > 5` or `10 < 5`. Instead you must use switches inside of the comparison.
+
+```{bash}
+# one liner
+if [ 10 -gt 5]; then echo "hello"; fi;
+
+# in a script
+if [10 -ge 10]
+then
+    echo "hello"
+fi
+```
+
+### For Loops
+
+For loops iterate a defined number of times, repeating some action. This is different from while loops, which will loop an undefined number of times until a condition is met. Because for loops execute a defined number of times, they must be given what is called an iterable to loop through. An iterable is anything that could be defined as a collection of items, such as the numbers 1-10, or an array of file names.
+
+The general structure of a for loop (in its one-line form) is `for some_var in $iterable; do some_command; done;`. It's worth pointing out that `some_var` can be name anything you wan; it's simply how you'll refer to the element from the iterable within your code.
+
+```{bash}
+# one-liner
+for i in {01..10}; do echo $i; done;
+
+# in a script
+for i in {01..10}
+do
+    echo $i
+done
+```
+
+## Examples
+
+### Check if a File Exists
+
+```{bash}
+if [ ! -f "path/to/my_file" ]
+then
+    echo "This file does not exist"
+fi
+```
+
+### Download the Files from LANL
+
+```{bash}
+# specify the files you want to download
+declare -a files=('auth.txt' 'proc.txt' 'flows.txt' 'dns.txt' 'redteam.txt')
+
+# loop through those files, plugging in the values into the URL each time
+# the syntax for iterating through an array is ${array_name[@]}
+for f in "${files[@]}"
+do
+    wget https://csr.lanl.gov/data/cyber1/$f.gz
+    # unzip the file while we're at it
+    gunzip $f.gz
+done
+```
+
+### Copy Two Columns of Data in dns.txt into a Single Column in computers.txt
+
+```{bash}
+# awk is a very powerful tool whose explanation is outside the scope of this
+# workshop. But it can be used to copy certain data from one file to another
+awk -F ',' '{print $2 >> "computers.txt"} {print $3 >> "computers.txt"}' dns.txt
+```
+
+## Remove Duplicates and Append Row Numbers
+
+```{bash}
+declare -a files=('computers', 'user_domains' 'ports' 'processes' 'auth_type' 'auth_orientation' 'logon_type')
+for f in "${files[@]}"
+do
+    # sort -u is equivalent to sort | uniq
+    # The NR in the awk statement is the line number, and $0 is the data
+    echo "id,name" > $f.csv
+    cat $f.txt | sort -u | awk '{printf "$s,$s\n",NR,$0}' >> $f.csv
+done
+```
+
+# SQL (PostgreSQL Syntax)
+
+## Common Commands
+
+The following commands are listed in the order in which they must be used in SQL. What this means is that you cannot specify the `where` clause before the `from` statement, or after the `group by` statement. More generally, you cannot specify any statement before any statement that is listed before, or after any statement that is listed after it. 
+
+### Select (Required)
+
+`select` is used to filter the columns of your table, as well as create new variables, and must be included in every SQL statement. The simplest `select` statement is `select *`, which selects all columns from your table and does not create any new columns.
+
+### From (Required)
+
+`from` specifies from which table you want to pull data. This will be considered the base table, which will be important when doing joins. It's worth pointing out that tables can be aliased. So if you have a table that is called "my_super_long_table_name", you can alias the table via `as new_name` after the table name. For example, `from my_super_long_table_name as a` will allow you to refer to that table as "a" for the rest of your query. This does *not* change the name of your table and you will have to use "my_super_long_table_name" in any subsequent queries.
+
+### Join (Optional)
+
+`join` is used when you want to look at data from more than one table. There are, for all intents and purposes, three kinds of joins: outer, inner, and left. An outer join will include all of the data from both tables (the table listed in the `from` statment and the table from the `join` statement). An inner join will include only the data that is found in both tables, based on the variables you specify. A left join will keep all of the data from the first table (the table specified in the `from` statement) and only keep data from the second table (the table specified in the `join` statement) where there is a match. Some examples are below. For the examples, assume the tables are as follows.
+
+<div style="display:inline-block;">
+```{r, echo=FALSE, eval=TRUE}
+suppressPackageStartupMessages(library(dplyr))
+suppressPackageStartupMessages(library(knitr))
+suppressPackageStartupMessages(library(kableExtra))
+
+df1 = tibble(var1=1:3, var2=c('a', 'b', 'c'))
+kable(df1, caption="Table 1") %>%
+    kable_styling(bootstrap_options=c('striped', 'hover', 'responsive'), full_width=F, position="float_left")
+```
+
+```{r, echo=FALSE, eval=TRUE}
+df2 = tibble(var1=2:4, var2=c('d', 'e', 'f'))
+kable(df2, caption="Table 2") %>%
+    kable_styling(bootstrap_options=c('striped', 'hover', 'responsive'), full_width=F, position="float_right")
+```
+</div>
+
+###### Outer Join
+
+```{sql}
+select *
+from table1 as a
+outer join table2 as b on a.var1 = b.var1
+```
+
+```{r, echo=FALSE, eval=TRUE}
+df1 %>%
+    full_join(df2, by='var1') %>%
+    kable(caption="Outer Join Result") %>%
+    kable_styling(bootstrap_options=c('striped', 'hover', 'responsive'), full_width=F, position='left')
+```
+
+###### Inner Join
+
+```{sql}
+select *
+from table1 as a
+inner join table2 as b on a.var1 = b.var1
+```
+
+```{r, echo=FALSE, eval=TRUE}
+df1 %>%
+    inner_join(df2, by='var1') %>%
+    kable(caption="Inner Join Result") %>%
+    kable_styling(bootstrap_options=c('striped', 'hover', 'responsive'), full_width=F, position='left')
+```
+
+###### Left Join
+
+```{sql}
+select *
+from table1 as a
+left join table2 as b on a.var1 = b.var1
+```
+
+```{r, echo=FALSE, eval=TRUE}
+df1 %>%
+    left_join(df2, by='var1') %>%
+    kable(caption="Left Join Result") %>%
+    kable_styling(bootstrap_options=c('striped', 'hover', 'responsive'), full_width=F, position='left')
+```
+
+### Where (Optional)
+
+`where` is used to filter the rows of your data. If, for example, you wanted to filter `table1` from the above example so that you were only looking at rows 1 and 3, you could use `where var1 != 2`. When creating new variables, the `where` clause can get a little messy. For example, if you had a `select` statement that looked like `select var1, var2, count(*) as n`, you could use a `where` like `where n > 3` because Postgres is smart enough to recognize that you're creating a variable called n. However, for more complicated calculations, such as `select var1, var2, case when var1 % 2 = 0 then 1 else 0 end as is_even`, you can't use `where is_even = 1` because it will claim that the variable doesn't exist. So just be wary that filtering on a variable you're creating in the same query can lead to a lot of typing and redundancy.
+
+### Group By (Optional)
+
+`group by` is used when you want to perform a an aggregating function on groups of data. As an example, consider a bag of Skittles. The bag of Skittles represents your table and each Skittle is a single row in your table. Your table would have columns like `color`, `size`, `flavor`, and `label`, where `label` is a binary column indicating if the "S" is readable on the Skittle. If you wanted to find the percentage of Skittles that had a readable label, based on color, you would use `group by`. The full SQL statement would look like `select color, avg(label) as pct_readable from skittles group by color`. Note that when grouping by variables, the variables you're grouping by must be included in the `select` statement.
+
+### Having (Optional)
+
+`having` is like the `where` statement, but instead of filtering out rows from your table, it filters out groups that don't meet a requirement. Using the Skittle example from above, let's say that we only wanted to see the colors where the label is readable more than 50% of the time. Instead of using a `where` statement, we would use a having statement. The primary difference between `where` and `having` is that `where` will execute _before_ the `group by` statement. So if you were to try to do `select color, avg(label) as pct_readable from skittles where pct_readable >= 0.50 group by color`, you'd get an error that `pct_readable` does not exist. This is why `having` must be used, because it executes _after_ the `group by` statement. The proper approach is to use `select color, avg(label) as readable from skittles group by color having pct_readable >= 0.50`.
+
+Note: when grouping by more than one variable, the variables must be listed in a comma-delimited fashion (i.e. `group by var1, var2, ..., var N`).
+
+### Order By (Optional)
+
+`order by` is used when you want to sort your final table. It is one of the last operations performed, after all of the data has been joined and filtered, variables selected and created, and groups filtered out, `order by` is the last step to present the data in the way you desire. The command takes one or more variables, and the sort is performed from left to right. What this means is that if you order by more than one variable, `order by` will sort the data by the first variable, then the second, then the third, and so on. This is often not very important, but is useful to keep in mind when thinking about how you want your data to be returned.
+
+In addition, `order by` can sort by ascending or descending order. Ascending is the default and does not need to be specified, but for any variables you want descending, it must be specified for each such variable. As an example: `order by var1, var2 desc, var3, var4 desc`. Here, `var2` and `var4` will be sorted in a descending fashion, while `var1` and `var3` will be sorted in an ascending fashion. 
+
+### Limit (Optional)
+
+`limit` is a function that restricts the number of results that are returned in the final table and is great for getting a top N or bottom N (depending on how you use `order by`) results from an analysis. It's also great for getting a look at your data when you're trying to familiarize yourself with a new table. The syntax is simply `limit N` where `N` is a number ranging from 1 to the number of records in your table. I'd recommend setting it to 5 if getting a sense of your data.
+
+## Aggregation Functions
+
+### Count
+
+`count` is used to count the number of non-null values in an expression. What this means is that if you were to run the query `select count(var1) from table1`, it would count the number of non-null values in that column. The way I see `count` used most often is with an asterisk: `select count(*) from table1`. This will count the number of rows in a table, assuming that no row has all null values. `count` can also be used with `group by` to get the number of rows within each group: `select var1, var2, count(*) from table1 group by var1, var`. This approach is used to create frequency tables.
+
+### Min, Max, Sum, and Average
+
+`min`, `max`, `sum`, and `avg` all do as you might expect. `min` takes the minimum value, `max` takes the maximum value, `sum` adds up the values, and `avg` gets the average value of a numeric variable. `min` and `max` can also be used on text variables, but I'd recommend against doing this until you're familiar with how strings are compared. Similar to `count`, `min`, `max`, and `avg` all work on groups as well. All of these commands are used in the `select` statement, and can all be used in the `where` clause when filtering data. Note that the use of `min`, `max`, `sum`, and `avg` in either the `select` or the `where` clause does not necessitate the use of it in the other. For example, if you write a statement like `select max(var2) from table1`, you do not have to include the `max(var2)` in a `where` clause. Similarly, this is also valid: `select * from table1 where var1 = max(var1)`. 
+
+## Other Useful Functions
+
+### Distinct
+
+`distinct` works like `uniq` does in Bash: it removes duplicate values, keeping the first row it finds with each unique value. What this means is that if you have two rows, both of which have the same value for the variables you specified in your `distinct` statement, SQL will keep the first row and drop the second. There are ways around this, but that's a bit outside the scope of this document. `distinct` can take one or more variables and is used in the `select` statement like this: `select distinct var1 from table`. When using more than one variable to find unique rows, SQL will look for rows that have that unique combination of variables, instead of dropping records based on just the first variable. 
+
+### Case
+
+`case` is used to create new variables based on the value of some expression. Typically, this is used to create a new variable based on the values of another variables. As an example, let's go back to the Skittles example, where we had a `flavor` column. If we wanted to find out what percentage of the bag was strawberry flavored, we would need to manipulate our data a bit to get that. One way to do that would be to create a new column called `is_straw` that would have a value of 1 if the skittle was strawberry flavored, and 0 otherwise. To this, we'd use `case`: `select flavor, case when flavor = "strawberry" then 1 else 0 end as is_straw from skittles`. This would create a new column called `is_straw` with values of 0 or 1, which we could not take an `avg` of to get the percentage of skittles that were strawberry.
+
+The general structure of a `case` statement is `case when <condition1> then <value> (when <condtion2> then <value2> ... when <conditionN> then <valueN>) else <default> end as new_var`. `when <condition> then <value>` is the snippet that evaluates an expression and then assigns a value for that row in the newly created variable. For any `case` statement, you only have to specify one `when` clause, but you can specify as many as you want. Regardless of how many `when` clauses you specify, every `case` statement must have an `else` clause, which specifies the default value to use if a row doesn't meet any of the criteria. Lastly, the `case` statement must end with `end as new_var_name` where `new_var_name` is what you want to call the new variable.
+
+### Like
+
+`like` is used to perform substring searches on text variables. Say, for example, you wanted to return all of the rows from a table that held data on fruits where the fruit's name was some kind of berry (e.g. strawberry, blackberry, blueberry). You could specify each fruit name that you wanted, or you could use a `like` statement. In the `like` statement, there are two symbols that can be used: `%` and `_` (this is different from other flavors of SQL where they might use `?` instead). To search for berry like fruits using `like`, you would use the query `select * from fruits where name like '%berry'`. The `%` specifies that any number of characters (0 to infinity) could be in front of the word berry. The `_` will search for only a single character. 
+
+## Examples
+
+### Get the number of authentications by day
+
+```{sql}
+select b.day, count(*)
+from auths a
+left join time b on a.time = b.t_second
+group by b.day
+;
+```
+
+### Get the average number of bytes transferred between computers
+
+```{sql}
+select avg(byte_count)
+from flows
+;
+```
+
+### Find how many computers each computer talked to
+
+```{sql}
+select src_comp, count(distinct dest_comp)
+from flows
+group by src_comp
+;
+```
+
+### Get the domain controller each computer authorized with most often
+
+```{sql}
+-- assume domain controllers are those that have UDP port 88 open
+select src_comp, dest_comp, n 
+from (
+    select * , rank() over (partition by src_comp order by n desc) as rank 
+    from (
+        select src_comp, dest_comp, count(*) as n 
+        from auths 
+        where dest_comp in (
+            select distinct dest_comp 
+            from flows 
+            where protocol = 17 and dest_port = 306
+        ) 
+        group by src_comp, dest_comp
+    ) a 
+) b 
+where rank = 1;
+```
+
+# R
+
+## Common Commands
+
+### library
+
+`library(packageName)` is a core component of R. It's how you bring in packages to get supplemental functions in R. The one we'll be working with the most is called `tidyverse`, which you load with `library(tidyverse)`. 
+
+### %>%
+
+The `%>%` symbol is just like the `|` symbol in Bash; it pipes the output from the left-hand side of the symbol into the function on the right-hand side of the symbol. It's instrumental in R and allows us to chain manipulations together into a single statement. The way it is used is like this: `read_csv('my_file.csv') %>% select(var1, var2) %>% arrange(var1)`. This command reads in some new data from a csv file, selects two columns from the data, and then sorts the data by the first variable. The `%>%` operator can be read as "and then", meaning the aforementioned command would read "read the csv and then select var1 and var2 and then arrange by var1".
+
+### read_csv
+
+This is a function that is used quite often in data science. Most analysts are familiar with Excel, so data gets passed around via csv or xlsx files; the latter of which is simply converted to a CSV for easy importing. Using it requires nothing more than giving it the file path of the csv file: `read_csv("path/to/my/file.csv")`. 
+
+`read_csv` is nothing omre than a wrapper for `read_delim` that assumes some variables, namely the delimiter (comma) and headers. If your data is separated by something else (e.g. semicolon, pipe), you should use `read_delim`.
+
+### tidyverse
+
+Tidyverse is a set of functions that make data analysis in R so much easier. The functions are all built around the idea of working with "tidy data" (where tidy means one record per row, and one variable per column). They're also standardized such that the first argument to all of the functions is the data. This makes `tidyverse` functions perfect for using the `%>%` operator.
+
+###### filter
+
+`filter` is one of the first functions from the `tidyverse` that you should learn. It is exactly like the `where` clause in SQL in that it filters rows of data. Unlike in SQL, where you use `and` and `or` as your logical operators, R uses `&` and `|`, respectively.
+
+Assuming you have a data frame named `df`, `filter` can be used in the following way. `df %>% filter(var1 > 10 & var2 != "a")`.
+
+###### select
+
+`select` is just like the `select` statement in SQL, except far more advanced. In addition to choosing which variables to keep, `select` can also drop variables by placing a `-` before the variable name. So, if you have a table with 30 variables and want to select 20 of them, you can use `select(-var1, -var2, -var3, ..., -var10)` instead of `select(var11, var12, var13, ..., var30)`, which means less typing. 
+
+There are also shortcuts that can be used. If you have a group of variables that you want to select that all have the same prefix, you can use the `starts_with` command inside of select: `select(starts_with("var"))`. If they have the same suffix, you can use `ends_with`. Lastly, if you want to select variables that are in consecutive order, you can use `:` between the first and and last variables you want to select: `select(var11:var30)`.
+
+###### arrange
+
+This function is equivalent to the `order by` command in SQL. If sorting by multiple variables, they are listed in a comma-separated way, and if you want a variable to be sorted in descending order, you use the `-` symbol. This would look like `df %>% arrange(var1, -var2, var3)`.
+
+###### group by
+
+`group_by` is another function that has a direct equivalent in SQL. And, like the other `tidyverse` functions, it also has some differences. In R, `group_by` will leave the data grouped until you `ungroup` the data. This is because multiple transformations may need to be applied to the grouped data. In some instances, such as when you use `summarize` on grouped data, the grouping is automatically undone. But for the part, it's good practice to `ungroup` the data after you've applied your transformations.
+
+Let's say you want to calculate the group average of a variable. You would use `df %>% group_by(var1) %>% summarize(average = mean(var2)) %>% ungroup()` to do this.
+
+###### summarize
+
+This is the function that you use when you want to aggregate the data via `min`, `max`, `mean`, `sum`, or any other aggregation function. It can be a bit confusing, because there is another function, `mutate`, that can do the same thing. The thing to keep in mind is that `summarize` requires that the expression returns a single value, whereas `mutate` requires the expression to return a single value, or a vector that is the same length as the number of rows in the input data. 
+
+###### mutate
+
+`mutate` can be used to create new variables, just like `summarize`, but can be used with both grouped and ungrouped data. But `summarize` and `mutate` append the new variable to the data and can be used in all future analyses. `mutate` is used in the following way: `df %>% mutate(var3 = var1 + var2)` or `df %>% group_by(var1) %>% mutate(var3 = mean(var2)) %>% ungroup()`.
+
+###### distinct
+
+`distinct` is equivalent to SQL's `distinct` command. Just like in SQL, `distinct` by default will only return the values you specify in the `distinct` statement. However, sometimes this isn't what you want. You might want to remove duplicates based on one column, but actually return all rows from that record. In R, this can be done by passing the `.keep_all=TRUE` parameter to `distinct`. For a data frame with just the distinct values of the columns you select, use `df %>% distinct(var1, var2)`. But if you want to keep all of the variables after the duplicates have been removed, use `df %>% distinct(var1, var2, .keep_all=TRUE)`. 
+
+### ggplot2
+
+This is another package that is absolutely mandatory when doing data analytics in R. It's actually loaded automatically when you load `tidyverse` (as are a few other packages). It's a data visualization package, based on the grammar of graphics. What this means is that every piece of the visualization is customizable, and the visualization is built in layers. 
+
+###### ggplot
+
+``ggplot` is the base function for a data visualization and must be called at the beginning of every graph. Within `ggplot`, we specify the data we'll be using, as well as the `aes`thetics of the plot. That might look something like `ggplot(data=df, aes(x=var1, y=var2))`. Running just command won't produce anything of value.
+
+###### aes
+
+`aes` defines the aesthetics of the graph, including what variables to use for the x and y axis, as well as the fill, color, and size to use, which is exemplified above. The `fill`, `color`, and `size` parameters can be confusing because it seems as if those parameters allow you to specify those values. In reality, they're asking for which variable to use to determine those values. If you pass "blue" to the `color` parameter, all of the symbols in the visualization will be the same color, but they will not be red.
+
+###### geom_*
+
+geoms are the layer of the visualization that actually plots the data. There are vast number of geom functions, which allow for some really cool, but also really powerful visualizations. For the sake of this document, we'll only be focusing on the main three and a bonus: `geom_line`, `geom_bar`, `geom_point`, and `geom_boxplot`. This is also the layer where you can specify actual values for the fill, color, and size.
+
+`geom_line`: Used when you want to show trends over time and works best when the x-axis is a time-based value. `geom_line` benefits from the `color` parameter.
+
+`geom_bar`: Used to compare values across categories and works best if your data is aggregated such that each category is on its own line, and there's only one line per category, but can be used without that. For example, you can do `ggplot(df, aes(x=var1)) + geom_bar()`, where `df` has two variables: `v1` and `v2`. You can also do `df %>% group_by(var1) %>% summarise(var2 = sum(var2)) %>% ggplot(aes(x=var1, y=var2)) + geom_bar(stat="identity")` if the data is already aggregated. `geom_bar` benefits from the `fill` and `color` parameters.
+
+`geom_point`: Used to identify correlations between two variables. This works best when both variables are numeric, but that's not a requirement for this visualization. Using a scatter plot (another name for a `geom_point` visualization) with two categorical values is discouraged against, as a table would do much better. `geom_point` benefits from the `color` and `size` parameters.
+
+`geom_boxplot`: Used for visualizing distributions. This works best when comparing categorical variables or groups of data. The box plot draws a box, where the lower bound is the first quartile of the values and the upper bound is the third quartile. It also draws whiskers, where the whiskers represent data between the 1st or 3rd quartiles and 1.5x the 1st or 3rd quartile. It also draws points for any data occuring outside the range of the whiskers, where these values should be viewed as anomalous. `geom_boxplot` benefits from the `fill` parameter.
+
+###### labs
+
+The `labs` layer is where you specify the labels on the graph, including the labels on the x and y axis, the title, the subtitle, the caption, and titles of any legends. By default, `ggplot` will use the names of the variables on the x and y axis as the labels, but ou can override that with `ggplot(df, aes(x=x, y=y)) + geom_point(color='blue') + labs(x="Variable 1", y="Variable 2")`.
+
+###### theme
+
+The `theme` layer is where you start customizing how the visualization works. You can change the font, the angle of the text on the axes, colors of the background, which text is visible, and more. Going through all of the options, both for `theme` and all of the other functions discussed here, would take an entire book or more to explain. But for the sake of this document, we'll focus on a couple that can make your visualizations look good with minimal effort. 
+
+`panel.background`: This is the grey rectangle that gets drawn by default when you make a new visualization. You can get rid of it, which gives a cleaner look, by setting `panel.background` equal to `element_blank()`.
+
+`axis.line`: Draw the x and y axis lines, which helps frame the graph. You can set this with the `element_line` function, specifying the `color` parameter to be black.
+
+`axis.x.text`: Use this to adjust the text on the axis axis (not the title). If, for example, you have longer labels that are overlapping, you can angle the text and shift it slightly to make it more readable. This is done via `axis.x.text=element_text(angle=45, hjust=1)`. 
+
+All of this would come together like in the example below.
+
+```{r}
+ggplot(df, aes(var1, var2)) +
+    geom_point(color='blue') +
+    labs(x="Variable 1", y="Variable 2", title="My Cool Graph") +
+    theme(panel.background = element_blank(),
+          axis.line = element_line(color='black'),
+          axis.text.x = element_text(angle=45, hjust=1))
+```
+
+# Git
+
+Git is a version control tool that provides a lot of different benefits. Because Git allows you to take snapshots of your work and create branches, its usage automatically provides benefits like audit trails, psuedo documentation, and the ability to try new things without losing what you tried previously. Git can become very unwieldy, very quickly. But the following commands will help you get started using it for your own personal projects.
+
+## Common Commands
+
+### git status
+
+Running `git status` in a directory that is a git repository will show you all the changes that are either staged or ready to be staged. You can use this to see which files have been modified since the last time you commited changes.
+
+### git add
+
+`git add` is the first command you issue when you're getting ready to commit changes to git. It can be used in one of two ways. The first is to just add all changes in one single commit. You can do this with `git add .`. The other way is to commit specific files in one commit. This would be done with `git add my_file.csv my_other_file.txt`. The last way can take advantage of wildcards, such as `git add *.csv`. The second way is the preferred approach to adding files when it comes to group projects, or those that are widly public. The reason is that it gives you the ability to provide more granular notes in your commit message.
+
+### git commit
+
+This is the second command you run to commit changes. You run it with `git commmit -m "commit message"` where the `-m` flag allows you to provide a short description about the changes you're making. These messages should be as helpful and pithy as possible. Things like "this should work" or "updating the file" aren't helpful because they don't explain what you did. Use things like "removed typo in line 34 that was causing a runtime error".
+
+`git commit` also has a very useful flag called `--amend`. This flag can be used to modify a previous commit. So, say you make a change in a script you're writing to try to fix something. You commit the changes to see if it works, only to find out that it doesn't. So you go back and try something else. Instead of making a new commit, you can run `git commit --amend` to amend the prior commit with the new changes. This will save you from a long string of commits with messages that look like "I really hope this works!".
+
+### git push
+
+`git push` is only used if you're saving your work to the cloud (aka Github). This is only necessary if you want to make your project public or simply want to make it available in the cloud. It is not a necessary step to using Git, though, which tends to be a common misconception. To push to your repo in the cloud you'd use `git push origin <branch>` where `<branch>` is the name of the branch you want to push to. If you've never created a branch before (more on that below), then you want to use `git push origin master`. 
+
+In order to use this, you'll have to make sure you have defined a URL to push to. This is described below.
+
+### git remote
+
+`git remote` is used to get and set info about your remote repository. In order to see if a URL has already been established, run `git remote -v`. This will show a URL if one is set, otherwise won't show anything. If it doesn't a URL, you can add one with `git remote add origin <URL>`. The URL can be obtained from your repo on Github by clicking the "Clone" button.
+
+If you already have a URL set, but want to change it (maybe you changed the name of your project), you can use `git remote set-url origin <URL>`. 
+
+### git log
+
+This will show the history of commits for the project. There are plenty of options that can be passed to this function, which you can read about online, but running it simply as `git log` produces good enough history.
+
+### git branch
+
+A branch is like a side thought in Git. You branch off from the main branch and start making changes. If you like the changes, you can merge the branch back into the master branch. Otherwise, you can simply delete the branch and pick up right where you left off on the main branch. To create a new branch you use `git branch <name>`, where `<name>` is the name of the branch. For logging purposes, this branch should be named appropriately.
+
+### git checkout
+
+`git checkout` goes hand in hand with `git branch`. When you use `git branch`, the branch is created, but you stay in the master branch. In order to switch to the new branch to start making changes, you have to use `git checkout <branch name>`. Because this is done so frequently, the two sequential commands can be combined by using `git checkout -b <branch name>`, which will simultaneously create the branch and then move into that branch. 
+
+`git checkout` can also be used to checkout prior commits, effectively going back in history. This is a little too advanced for this document, but once you're more familiar with Git, it's definitely worth looking into.
