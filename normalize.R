@@ -205,6 +205,7 @@ main = function() {
     con = DBI::dbConnect(PostgreSQL(), dbname='lanl', host='localhost', port=5432, 
                          user='potentpwnables', password='converge2019')
     
+    process_reference_tables(con)
     process_dns(con)
     process_redteam(con)
     process_flows(con)
