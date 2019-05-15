@@ -189,7 +189,14 @@ create_time_table = function(con) {
                d_second = t_second - (86400 * (day - 1)),
                d_minute = t_minute - (1440 * (day - 1)),
                d_hour = t_hour - (24 * (day - 1))) %>%
-        mutate_all(as.integer)
+        mutate_all(as.integer) %>%
+        mutate(tmp_second = (d_second - (60 * (d_minute - 1))) - 1, 
+               tmp_minute = (d_minute - (60 * (d_hour - 1))) - 1,
+               date = paste0("Day ", str_pad(day, width=2, side='left', pad='0'), " ", 
+                             str_pad(d_hour-1, width=2, side='left', pad='0'), ":", 
+                             str_pad(tmp_minute, width=2, side='left', pad='0'), ":", 
+                             str_pad(tmp_second, width=2, side='left', pad='0'))) %>%
+        select(-tmp_minute, -tmp_second)
     dbWriteTable(con, 'time', time, append=T, row.names=F)
     print('TIME processed successfully...')
 }

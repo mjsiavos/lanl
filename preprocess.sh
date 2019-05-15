@@ -14,14 +14,6 @@ do
 	fi
 done
 
-# create the end files where our data will be saved with the headers
-echo "[+] Creating initial versions of final files"
-declare -a files=('computers.csv' 'user_domains.csv' 'ports.csv' 'processes.csv' 'auth_type.csv' 'auth_orientation.csv' 'logon_type.csv')
-for f in "${files[@]}"
-do
-	echo "id,name" > $f
-done
-
 # extract information from the raw files into the reference files
 echo "[+] Creating reference tables"
 awk -F ',' '{print $2 >> "user_domains.txt"} {print $3 >> "user_domains.txt"} {print $4 >> "computers.txt"} {print $5 >> "computers.txt"} {print $6 >> "auth_type.txt"} {print $7 >> "logon_type.txt"} {print $8 >> "auth_orientation.txt"}' auth.txt
@@ -41,6 +33,7 @@ for f in "${files[@]}"
 do
         # Sort the file and make it unique, and then add line numbers
         echo "    Working on $f..."
+	echo "id,name" > $f.csv
         cat $f.txt | sort --parallel=4 -u | awk '{printf "%s,%s\n",NR,$0}' >> $f.csv
         rm $f.txt
 done
