@@ -1,6 +1,6 @@
 ---
 title: "Mo' Data Mo' Problems"
-subtitle: "Threat Hunting the Data Science Way - Converge 2019"
+subtitle: "Leveraging Data Analytics to Mine Through a Sea of Data - Converge 2019"
 output: 
     ioslides_presentation:
         widescreen: true
@@ -11,40 +11,60 @@ output:
 knitr::opts_chunk$set(echo=TRUE, eval=FALSE, message=FALSE, error=FALSE, warning=FALSE, comment='')
 ```
 
-# Before we dive in
+# Agenda
 
-## Who am I? {.build}
+## Agenda
 
-- Economist
-- Data scientist
-- Threat intelligence analyst
-- Data enthusiast
+08:00 - 08:30: Welcoming remarks, testing of environment, Github profile creation
+08:30 - 08:35: Introduction of me, you, and our expectations
+08:35 - 08:40: Brief introduction to the data science workflow
+08:40 - 08:55: Review of the data engineering that went into this
+08:55 - 09:00: Schedule buffer, bathroom break, and coffee time
+09:00 - 10:20: Introduction to SQL and R through exploratory data analysis
+10:20 - 10:30: Schedule buffer, bathroom break, and coffee time
+10:30 - 11:50: Analytical challenges to bolster hypothesis/question generation
+11:50 - 12:00: Closing remarks and saving to Github
 
-## Who are you?
+# Preamble
 
-- Student
-- SOC Analyst
-- Threat Hunter
-- Management
-- Data enthusiast
+## Who am I?
 
-## What are we doing?
+- Economist  
+- Data scientist  
+- Data engineer  
+- Data generalist  
 
-- Security involves lots of data
-- Lots of data is hard to mine through
-- Data science helps with that
-- Most security folks aren't data scientists
-- We're going to change that
+## Who are You?
+
+- Student  
+- SOC Analyst  
+- Threat Hunter  
+- Incident Responder  
+- Data enthusiast  
+
+## What are we Doing? {.build}
+
+- Learning about data engineering  
+- Growing our data science skill set  
+- Getting comfortable working with large amounts of data  
+- Learning how to use Bash, Git, SQL and R  
+- Becoming better analysts  
+
+## What aren't we Doing? {.build}
+
+- Threat hunting  
+- Mastering anything  
+- Learning machine learning or AI 
+- Coming up with any ground breaking insights
+- Leaving here without feeling accomplished
 
 ##
 
-<div style="align:center;">
 ![](workflow.png)
-</div>
 
 # Import
 
-## Downloading the data
+## Downloading the Data
 
 ```{bash}
 # download, unzip, delete compressed file
@@ -60,17 +80,9 @@ do
 done
 ```
 
-## Normalizing the data: Reference tables
+## Normalizing the Data: Reference Tables
 
 ```{bash}
-# create the CSV files
-declare -f files=('computers.csv' 'user_domains.csv' 'ports.csv' \
-'processes.csv' 'auth_types.csv' 'auth_orientation.csv' 'logon_type.csv')
-for f in "${files[@]}"
-do
-    echo "id,name" > $f
-done
-
 # extract the relevant data to temp files (pseudo code for readability)
 awk -F ',' '{print $2 >> "user_domains.txt"} {print $3 >> "user_domains.txt"} 
             {print $4 >> "computers.txt"} {print $5 >> "computers.txt"} 
@@ -79,25 +91,20 @@ awk -F ',' '{print $2 >> "user_domains.txt"} {print $3 >> "user_domains.txt"}
             
 awk -F ',' '{print $3 >> "computers.txt"} {print $4 "ports.txt"}
             {print $5 >> "computers.txt"} {print $6 "ports.txt"}' flows.txt
-            
+
+awk -F ',' '{print $2 >> "user_domains.txt"} {print $3 >> "computers.txt"}
+            {print $4 >> processes.txt"}' proc.txt
 ```
 
-## Normalizing the data: Reference tables (cont.)
+## Normalizing the Data: Reference Tables (cont.)
 
 ```{bash}
 # extract the relevant data to temp files (pseudo code for readability)
-awk -F ',' '{print $2 >> "user_domains.txt"} {print $3 >> "computers.txt"}
-            {print $4 >> processes.txt"}' proc.txt
-            
 awk -F ',' '{print $2 >> "computers.txt"} {print $3 >> "computers_txt"}' dns.txt
 
 awk -F ',' '{print $2 >> "user_domains.txt"} {print $3 >> "computers.txt"}
             {print $4 >> "computers.txt"}' redteam.txt
-```
-
-## Normalizing the data: Reference tables (cont.)
-
-```{bash}
+            
 # dedupe the lookup tables and append row numbers
 declare -a files=('computers', 'user_domains', 'ports', 'processes' \
 'auth_type' 'auth_orientation' 'logon_type')
@@ -108,29 +115,7 @@ do
 done
 ```
 
-## Normalizing the data: Data replacement (failed)
-
-```{bash}
-# replace strings with index numbers
-sort -k 2 -t , auth.txt \
-| join -1 2 -2 2 - user_domains.csv -t , -o 1.1,2.1,1.3,1.4,1.5,1.6,1.7,1.8,1.9 \
-| sort -k 3 -t , \
-| join -1 3 -2 2 - user_domains.csv -t , -o 1.1,1.2,2.1,1.4,1.5,1.6,1.7,1.8,1.9 \
-| sort -k 4 -t , \
-| join -1 4 -2 2 - computers.csv -t , -o 1.1,1.2,1.3,2.1,1.5,1.6,1.7,1.8,1.9 \
-| sort -k 5 -t , \
-| join -1 5 -2 2 - computers.csv -t , -o 1.1,1.2,1.3,1.4,2.1,1.6,1.7,1.8,1.9 \
-| sort -k 6 -t , \
-| join -1 6 -2 2 - auth_type.csv -t , -o 1.1,1.2,1.3,1.4,1.5,2.1,1.7,1.8,1.9 \
-| sort -k 7 -t , \
-| join -1 7 -2 2 - logon_type.csv -t , -o 1.1,1.2,1.3,1.4,1.5,1.6,2.1,1.8,1.9 \
-| sort -k 8 -t , \
-| join -1 8 -2 2 - auth_orientation.csv -t , -o 1.1,1.2,1.3,1.4,1.5,1.6,1.7,2.1,1.9 \
-| sort -k 1 -t , \
-| sed -e "s/Success/1/g;s/Failure/0/g" > auth.csv
-```
-
-## Normalizing the data: Data replacement (worked)
+## Normalizing the Data: Data Replacement
 
 ```{r}
 df = read_csv(f, col_names=c('time', 'src_user_domain', 'dest_user_domain',
@@ -147,42 +132,175 @@ df = df %>%
             mutate(success = as.integer(success == 'Success'))
 ```
 
-## Storing the data: Table creation
+## Storing the Data
 
 ```{sql}
--- lookup table example
+-- create lookup table
 CREATE TABLE auth_orientation(id int PRIMARY KEY, name varchar(15) NOT NULL);
 
--- main table example
-CREATE TABLE flows(id serial, time int, duration int, protocol int, packet_count bigint,
-                   byte_count bigint, src_comp int, dest_comp int, src_port int, dest_port int,
+-- create main table
+CREATE TABLE flows(id serial, time int, duration int, protocol int, 
+                   packet_count bigint, byte_count bigint, src_comp int, 
+                   dest_comp int, src_port int, dest_port int,
                    FOREIGN KEY (src_comp) REFERENCES computers(id),
                    FOREIGN KEY (dest_comp) REFERENCES computers(id),
                    FOREIGN KEY (src_port) REFERENCES ports(id),
                    FOREIGN KEY (dest_port) REFERENCES ports(id));
                    
--- index example
+-- create an index
 CREATE INDEX idx_flows_src_comp ON flows(src_comp);
-```
 
-## Accessing the data
-
-```{sql}
--- must be in this order
-SELECT var1, var2, count(*), avg(var3), min(var4), max(var5)
-FROM table_name
-WHERE where_clause -- optional (filters the data)
-GROUP BY var1, var2 -- optional
-HAVING having_clause -- optional (filters the groups)
-ORDER BY var1, var2 desc -- optional
+-- copy CSV to table
+COPY dns(time, src_comp, rslvd_comp) FROM "./data/dns.csv"
+    DELIMITER ',' CSV HEADER;
 ```
 
 # Tidy
 
-# Exploratory data analysis
+## Label cleaning
 
-# Hypothesis generation
+```{sql}
+SELECT * FROM auth_type WHERE name LIKE 'MICROSOFT%';
 
-# Modeling
+ id |                 name                  
+----+---------------------------------------
+  5 | MICROSOFT_AUTHENTICA
+  6 | MICROSOFT_AUTHENTICAT
+  7 | MICROSOFT_AUTHENTICATI
+  8 | MICROSOFT_AUTHENTICATIO
+  9 | MICROSOFT_AUTHENTICATION
+    [TRUNCATED]
+ 17 | MICROSOFT_AUTHENTICATION_PACKAGE
+ 18 | MICROSOFT_AUTHENTICATION_PACKAGE_
+ 19 | MICROSOFT_AUTHENTICATION_PACKAGE_V
+ 20 | MICROSOFT_AUTHENTICATION_PACKAGE_V1
+ 21 | MICROSOFT_AUTHENTICATION_PACKAGE_V1_
+ 22 | MICROSOFT_AUTHENTICATION_PACKAGE_V1_0
+```
 
-# Communication
+```{sql}
+UPDATE auths 
+SET auth_type=9 
+WHERE auth_type IN (
+    SELECT id FROM auth_type WHERE name LIKE 'MICROSOFT%'
+);
+```
+
+## Checking data integrity
+
+```{sql}
+SELECT COUNT(*) 
+FROM (
+    SELECT DISTINCT * 
+    FROM (
+        SELECT time, src_comp, dest_comp FROM auths
+    ) a 
+    INNER JOIN (
+        SELECT time, src_comp, dest_comp 
+        FROM redteam
+    ) b ON a.time = b.time 
+        AND a.src_comp = b.src_comp 
+        AND a.dest_comp = b.dest_comp
+); -- 699 records
+
+SELECT COUNT(*)
+FROM (
+    SELECT DISTINCT time, src_comp, dest_comp FROM redteam
+) a; -- 713 records
+```
+
+# Understand
+
+## Exploratory Data Analysis
+
+1) How many tables are there?  
+2) Which tables are reference tables?  
+3) How many unique computers are on the network?  
+4) How many unique users?  
+5) Which two computers talk to each other the most?  
+    5a) What is wrong with this analysis?
+6) What do the values in the `protocol` column mean?  
+7) What is the text value (not the normalized value) of the `logon_type` for the first three authorizations (`id` in 1, 2, and 3)?  
+8) What is the most used process on the network?  
+9) For how many days do we have activity?
+10) For how many days were the red team active (that we know about)?
+
+## Hypothesis/Question Generation
+
+Now that we're more familiar with our data, let's start performing some actual analyses that we might want to conduct in the real world. We'll start with the authorizations table to get our brains working in a "hypothesis generation" state. From there, we'll move over to the flows table to start looking at ways to identify anomalies. Next, we'll spend some time with the processes and dns tables, in conjunction with the flows table, to see if we can start really piecing together what people are doing on their machines. We'll finish with looking at the first 15 days of the red team activity and see if we can use that to identify the last 15 days of activity. 
+
+# Authorization Data
+
+## Challenge: Identify Days of the Week
+
+When working with data, it's not always possible to know exactly what every variable represents, or what the data is supposed to be telling us. Other times, you'll be forced to work with incomplete data and will have to fill in some of the pieces yourself. That's no different with the data we have here.
+
+Time is currently represented as the number of seconds since "epoch", where epoch here means the time when the data was collected. This is done as a form of anonymization, but it would be helpful if we were able to identify what day of the week activity was occuring. Our challenge then, is to identify a way in which we could estimate that with some certainty.
+
+## Challenge: Identify the days of the week
+
+```{sql}
+SELECT t.day AS day, COUNT(*) as n
+FROM auths a
+LEFT JOIN time t ON a.time = t.t_second
+GROUP BY t.day
+```
+
+## Challenge: Which dest computer did each src computer talk to the longest?
+
+Let's say that we're network analysts and we're interested in knowing which computers spend the most time connected to each other passing data back and forth. If we find that a computer is connected to a certain computer for a large period of time, but the data transfer is on par with other connections, then it might be the case that something is wrong with the data transfer between those two computers. Similarly, we might look at the inverse and see the computers with the least amount of time connected and compare that to the amount of data flowing through. Perhaps the infrastructure there can be of value to us, or perhaps the anomalous relationship is something worth investigating.
+
+For this instance, we'll only look at identifying the computer each computer on the network spent the most time passing data to. What this means is that we won't be looking at the bi-directional relationship; instead focusing on a one-way transaction. The reason we might be interested in doing this is to analyze network problems.
+
+## Challenge: Which dest computer did each src computer talk to the longest?
+
+```{sql}
+SELECT src_comp, dest_comp, tot_duration 
+FROM (
+    SELECT src_comp, 
+           dest_comp, 
+           tot_duration, 
+           RANK() over (partition BY src_comp 
+                        ORDER BY tot_duration DESC) AS rank 
+    FROM (
+        SELECT src_comp, dest_comp, SUM(duration) AS tot_duration 
+        FROM flows 
+        GROUP BY src_comp, dest_comp
+    ) a
+) b 
+WHERE rank = 1;
+```
+
+## Challenge: Which computers are the domain controllers?
+
+## Challenge: What is the distribution of log on and log off times?
+
+Anomaly detection is all the rage in vendor maketing materials these days. When trying to detect anomalies, having a baseline is paramount to success. Identity and Access Management analysts, for example, might be interested in alerting on anomalous log on times for any given machine. 
+
+# Flows
+
+## Challenge: Which flows appear anomalous?
+
+## Challenge: Which computers that are communicated with exist outside of the network?
+
+## Challenge: Which authorizations are malicious?
+
+# Communicate
+
+## Congratulations! 
+
+We have just successfully mined through over 400 GB of data. We looked at authorization data to identify which computers were domain controllers, identified anomalous network traffic, familiarized ourselves with the processes running on our network, and even started looking at which servers outside of the LANL network are being communicated with. We used Bash, SQL, and R to get the data, process it, store it in a database, and then use that database to perform some analyses.
+
+You should be proud of that!
+
+## Push to Github
+
+Let's save our notebook on Github so that others can see what we've accomplished. 
+
+```{bash}
+git init
+git remote add origin https://github.com/$username/converge2019
+git add .
+git commit -m "My analysis of the LANL data from Converge 2019"
+git push origin master
+```
