@@ -13,6 +13,7 @@ knitr::opts_chunk$set(echo=TRUE, eval=FALSE, message=FALSE, error=FALSE, warning
 
 ```{r pkgs, echo=F, eval=T}
 suppressPackageStartupMessages(library(tidyverse))
+suppressPackageStartupMessages(library(ggrepel))
 ```
 
 # Agenda
@@ -290,13 +291,31 @@ ggplot(cnt_by_day, aes(x=day, y=n/1e6)) +
           axis.line=element_line(color="black"))
 ```
 
-## Challenge: What is the distribution of log on and log off times?
+## Challenge: Which flows appear anomalous?
 
-Identity and Access Management analysts are all about making sure that only those who are supposed to be accessing an asset are the ones accessing that asset. User behavior analytics is one of the ways in which they can help achieve their goal. Knowing when their users typically log in and log out for work on a regular basis can help establish a baseline, which makes it possible to alert on activity that is taking place outside of what is normal.
+Anomaly detection is all the rage in vendor maketing materials these days, whether it's an IPS solution or UBA. When trying to detect anomalies, having a baseline is paramount to success. Imagine you're a DLP analyst, in charge of making sure sensitive data doesn't leave your network. While scanning packets for keywords might be one approach you take, analyzing anomalous network flows might be another.
 
-With that in mind, let's identify the distribution of each users' average logon and logoff times.
+If a user on your network is suddently transfering large amounts of data, much more than they normally do, this might be signs of data exfil, and you'll want to be alerted on that as soon as possible.
 
-## Challenge: What is the distribution of log on and log off times?
+## Challenge: Which flows appear anomalous?
+
+```{sql}
+SELECT  a.src_comp, a.dest_comp, 
+		a.packet_count, a.byte_count
+FROM flows a 
+LEFT JOIN (
+	SELECT  src_comp,
+			dest_comp, 
+			AVG(packet_count) AS avg_pkt_cnt,
+			AVG(byte_count) AS avg_byte_cnt
+	FROM flows
+	GROUP BY src_comp, dest_comp
+) b ON a.src_comp = b.src_comp
+	AND a.dest_comp = b.dest_comp
+WHERE a.packet_count > (2 * avg_pkg_cnt)
+	OR a.byte_count > (2 * avg_byte_cnt)
+;
+```
 
 ## Challenge: Which dest computer did each src computer talk to the longest?
 
@@ -323,17 +342,122 @@ FROM (
 WHERE rank = 1;
 ```
 
-## Challenge: Which flows appear anomalous?
-
-Anomaly detection is all the rage in vendor maketing materials these days, whether it's an IPS solution or UBA. When trying to detect anomalies, having a baseline is paramount to success. Imagine you're a DLP analyst, in charge of making sure sensitive data doesn't leave your network. While scanning packets for keywords might be one approach you take, analyzing anomalous network flows might be another.
-
-If a user on your network is suddently transfering large amounts of data, much more than they normally do, this might be signs of data exfil, and you'll want to be alerted on that as soon as possible.
-
 ## Challenge: Which computers are the DCs?
 
 This challenge is merely to demonstrate the power of data visualization in its ability to provide answers, even if you don't know the question that you're asking. What type of visualization do you think would be best for using the auth data to identify which computers are domain controllers?
 
+## Challenge: Which computers are the DCs?
 
+```{sql}
+SELECT src_comp, dest_comp, COUNT(*) AS n
+FROM auth
+GROUP BY src_comp, dest_comp
+```
+
+```{r, echo=F, eval=T}
+auths = read_rds('cache/identify_dcs.Rdata')
+auths
+```
+
+## Challenge: Which computers are the DCs?
+
+```{r, eval=T}
+pdata = auths %>%
+    group_by(dest_comp) %>%
+    summarise(size=length(unique(src_comp)),
+              conns=sum(n)) %>%
+    ungroup() %>%
+    mutate(size = (size - min(size)) / (max(size) - min(size)),
+           label = ifelse(conns >= 5e7, as.character(dest_comp), ''))
+```
+
+## Challenge: Which computers are the DCs?
+
+```{r}
+ggplot(data=pdata, aes(x=dest_comp, y=log(conns, base=10), size=size)) +
+    geom_point(alpha=0.1) +
+    geom_text_repel(label=pdata$label, size=3) +
+    labs(x="Destination Computer", 
+         y="Number of Connections", 
+         title=paste("Size represents number of unique", 
+         			 "computers connecting to that computer")) +
+    theme(panel.background=element_blank(),
+          axis.line=element_line(color='black'),
+          axis.text.x=element_blank(),
+          axis.ticks.x=element_blank(),
+          legend.position='none')
+```
+
+## Challenge: Which computers are the DCs?
+
+```{r, echo=F, eval=T, fig.align='center'}
+ggplot(data=pdata, aes(x=dest_comp, y=log(conns, base=10), size=size)) +
+    geom_point(alpha=0.1) +
+    geom_text_repel(label=pdata$label, size=3) +
+    labs(x="Destination Computer", 
+         y="Number of Connections", 
+         title=paste("Size represents number of unique", 
+         			 "computers connecting to that computer")) +
+    theme(panel.background=element_blank(),
+          axis.line=element_line(color='black'),
+          axis.text.x=element_blank(),
+          axis.ticks.x=element_blank(),
+          legend.position='none')
+```
+
+## Challenge: Which computers are the DCs?
+
+How could we confirm that these computers are the domain controllers?
+
+## Challenge: Which computers are the DCs?
+
+How could we confirm that these computers are the domain controllers?
+
+```{sql}
+SELECT dest_comp, COUNT(*)
+FROM flows
+WHERE dest_port IN (
+	SELECT id FROM ports WHERE name = '88'
+) AND protocol = 17
+GROUP BY dest_comp
+ORDER BY COUNT(*) DESC
+LIMIT 10
+;
+```
+
+## Challenge: Which computers are the DCs?
+
+```{r, echo=F, eval=T}
+results = read_rds('cache/udp_88.Rdata')
+results
+```
+
+## Challenge: Establish a workday baseline for each user
+
+Identity and Access Management analysts are all about making sure that only those who are supposed to be accessing an asset are the ones accessing that asset. User behavior analytics is one of the ways in which they can help achieve their goal. Knowing when their users typically log in and log out for work on a regular basis can help establish a baseline, which makes it possible to alert on activity that is taking place outside of what is normal.
+
+In general, this would be a pretty complex query, primarily because not every user logs off at the end of the day. So, instead of looking at the actual log on and log off times, let's just look at the first and last activity time we see from users for each day. 
+
+## Challenge: Establish a workday baseline for each user
+
+```{sql}
+SELECT c.*
+FROM (
+	SELECT  a.src_user_domain as user, 
+			b.day
+			MIN(a.time) as start, MAX(a.time) as end
+	FROM auths a
+	LEFT JOIN time b
+		ON a.time = b.t_second
+	GROUP BY a.src_comp, b.day
+) c
+INNER JOIN (
+	SELECT *
+	FROM user_domains
+	WHERE name NOT LIKE '%$%'
+) d on c.user = d.id
+;
+```
 
 ## Free Play
 
