@@ -11,19 +11,24 @@ output:
 knitr::opts_chunk$set(echo=TRUE, eval=FALSE, message=FALSE, error=FALSE, warning=FALSE, comment='')
 ```
 
+```{r pkgs, echo=F, eval=T}
+suppressPackageStartupMessages(library(tidyverse))
+```
+
 # Agenda
 
 ## Agenda
 
-08:00 - 08:30: Welcoming remarks, testing of environment, Github profile creation
-08:30 - 08:35: Introduction of me, you, and our expectations
-08:35 - 08:40: Brief introduction to the data science workflow
-08:40 - 08:55: Review of the data engineering that went into this
-08:55 - 09:00: Schedule buffer, bathroom break, and coffee time
-09:00 - 10:20: Introduction to SQL and R through exploratory data analysis
-10:20 - 10:30: Schedule buffer, bathroom break, and coffee time
-10:30 - 11:50: Analytical challenges to bolster hypothesis/question generation
-11:50 - 12:00: Closing remarks and saving to Github
+08:00 - 08:30: Welcoming remarks, environment tests, Github profile creation  
+08:30 - 08:35: Introduction of me, you, and our expectations  
+08:35 - 08:40: Brief introduction to the data science workflow  
+08:40 - 08:55: Review of the data engineering that went into this  
+08:55 - 09:00: Schedule buffer, bathroom break, and coffee time  
+09:00 - 09:30: Introduction to SQL and R through exploratory data analysis  
+09:30 - 10:45: Analytical challenges to bolster hypothesis/question generation  
+10:45 - 11:00: Schedule buffer, bathroom break, and coffee time  
+11:00 - 11:45: Free play  
+11:45 - 12:00: Closing remarks and saving to Github  
 
 # Preamble
 
@@ -119,8 +124,8 @@ done
 
 ```{r}
 df = read_csv(f, col_names=c('time', 'src_user_domain', 'dest_user_domain',
-                                     'src_comp', 'dest_comp', 'auth_type', 'logon_type',
-                                     'auth_orientation', 'success'))
+                             'src_comp', 'dest_comp', 'auth_type', 'logon_type',
+                             'auth_orientation', 'success'))
 df = df %>%
             left_join(user_domains, by=c('src_user_domain'='name')) %>%
             select(-src_user_domain) %>%
@@ -157,7 +162,7 @@ COPY dns(time, src_comp, rslvd_comp) FROM "./data/dns.csv"
 
 # Tidy
 
-## Label cleaning
+## Label Cleaning
 
 ```{sql}
 SELECT * FROM auth_type WHERE name LIKE 'MICROSOFT%';
@@ -178,6 +183,8 @@ SELECT * FROM auth_type WHERE name LIKE 'MICROSOFT%';
  22 | MICROSOFT_AUTHENTICATION_PACKAGE_V1_0
 ```
 
+## Label Cleaning (cont)
+
 ```{sql}
 UPDATE auths 
 SET auth_type=9 
@@ -186,7 +193,7 @@ WHERE auth_type IN (
 );
 ```
 
-## Checking data integrity
+## Checking Data Integrity
 
 ```{sql}
 SELECT COUNT(*) 
@@ -221,19 +228,21 @@ FROM (
     5a) What is wrong with this analysis?
 6) What do the values in the `protocol` column mean?  
 7) What is the text value (not the normalized value) of the `logon_type` for the first three authorizations (`id` in 1, 2, and 3)?  
-8) What is the most used process on the network?  
+8) What server is queried most often in DNS?  
 9) For how many days do we have activity?
 10) For how many days were the red team active (that we know about)?
 
-## Hypothesis/Question Generation
+## Question Formulation
 
-Now that we're more familiar with our data, let's start performing some actual analyses that we might want to conduct in the real world. We'll start with the authorizations table to get our brains working in a "hypothesis generation" state. From there, we'll move over to the flows table to start looking at ways to identify anomalies. Next, we'll spend some time with the processes and dns tables, in conjunction with the flows table, to see if we can start really piecing together what people are doing on their machines. We'll finish with looking at the first 15 days of the red team activity and see if we can use that to identify the last 15 days of activity. 
+Given the data that we have, what are some business questions you'd like to be able to answer?
 
-# Authorization Data
+## Turn Questions into Queries
+
+We're going to spend the rest of the workshop answering questions that could potentially come up in the real world, using the data that we have. 
 
 ## Challenge: Identify Days of the Week
 
-When working with data, it's not always possible to know exactly what every variable represents, or what the data is supposed to be telling us. Other times, you'll be forced to work with incomplete data and will have to fill in some of the pieces yourself. That's no different with the data we have here.
+When working with data, it's not always possible to know exactly what every variable represents, or what the data is supposed to be telling us. Sometimes, you'll be forced to work with incomplete data and will have to fill in some of the pieces yourself. That's no different with the data we have here.
 
 Time is currently represented as the number of seconds since "epoch", where epoch here means the time when the data was collected. This is done as a form of anonymization, but it would be helpful if we were able to identify what day of the week activity was occuring. Our challenge then, is to identify a way in which we could estimate that with some certainty.
 
@@ -245,6 +254,49 @@ FROM auths a
 LEFT JOIN time t ON a.time = t.t_second
 GROUP BY t.day
 ```
+
+```{r, echo=F, eval=T}
+cnt_by_day = readRDS('cache/auth_by_day.Rdata')
+cnt_by_day
+```
+
+## Challenge: Identify the days of the week
+
+```{r}
+ggplot(cnt_by_day, aes(x = day, y = n / 1e6)) +
+    geom_line() +
+    geom_point() +
+    scale_y_continuous(breaks = seq(10,30), labels = seq(10,30), 
+    				   limits = c(10,30), expand = c(0,0)) +
+    scale_x_continuous(breaks = seq(1,59, by=2), labels = seq(1,59,by=2), 
+    				   limits = c(1,59)) +
+    labs(x = "Day", y = "Authorizations (in millions)") +
+    theme(panel.background = element_blank(),
+          panel.grid.major = element_line(color = 'gray90'),
+          axis.line = element_line(color = "black"))
+```
+
+## Challenge: Identify the days of the week
+
+```{r, echo=F, eval=T, fig.align="center"}
+ggplot(cnt_by_day, aes(x=day, y=n/1e6)) +
+    geom_line() +
+    geom_point() +
+    scale_y_continuous(breaks=seq(10,30), labels=seq(10,30), limits=c(10,30), expand=c(0,0)) +
+    scale_x_continuous(breaks=seq(1,59, by=2), labels=seq(1,59,by=2), limits=c(1,59)) +
+    labs(x="Day", y="Authorizations (in millions)") +
+    theme(panel.background=element_blank(),
+          panel.grid.major=element_line(color='gray90'),
+          axis.line=element_line(color="black"))
+```
+
+## Challenge: What is the distribution of log on and log off times?
+
+Identity and Access Management analysts are all about making sure that only those who are supposed to be accessing an asset are the ones accessing that asset. User behavior analytics is one of the ways in which they can help achieve their goal. Knowing when their users typically log in and log out for work on a regular basis can help establish a baseline, which makes it possible to alert on activity that is taking place outside of what is normal.
+
+With that in mind, let's identify the distribution of each users' average logon and logoff times.
+
+## Challenge: What is the distribution of log on and log off times?
 
 ## Challenge: Which dest computer did each src computer talk to the longest?
 
@@ -271,19 +323,23 @@ FROM (
 WHERE rank = 1;
 ```
 
-## Challenge: Which computers are the domain controllers?
-
-## Challenge: What is the distribution of log on and log off times?
-
-Anomaly detection is all the rage in vendor maketing materials these days. When trying to detect anomalies, having a baseline is paramount to success. Identity and Access Management analysts, for example, might be interested in alerting on anomalous log on times for any given machine. 
-
-# Flows
-
 ## Challenge: Which flows appear anomalous?
 
-## Challenge: Which computers that are communicated with exist outside of the network?
+Anomaly detection is all the rage in vendor maketing materials these days, whether it's an IPS solution or UBA. When trying to detect anomalies, having a baseline is paramount to success. Imagine you're a DLP analyst, in charge of making sure sensitive data doesn't leave your network. While scanning packets for keywords might be one approach you take, analyzing anomalous network flows might be another.
 
-## Challenge: Which authorizations are malicious?
+If a user on your network is suddently transfering large amounts of data, much more than they normally do, this might be signs of data exfil, and you'll want to be alerted on that as soon as possible.
+
+## Challenge: Which computers are the DCs?
+
+This challenge is merely to demonstrate the power of data visualization in its ability to provide answers, even if you don't know the question that you're asking. What type of visualization do you think would be best for using the auth data to identify which computers are domain controllers?
+
+
+
+## Free Play
+
+Now that you've gained some experience in using SQL and R, try using those skills to answer the business questions you came up with earlier. 
+
+Or, if you'd rather, try to identify which of the records in the auths data are malicious.
 
 # Communicate
 

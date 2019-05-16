@@ -1,15 +1,16 @@
 ---
-title: "Converge 2019 Data Analytics Workshop Reference Guide"
+title: "Reference Guide"
+subtitle: "Converge 2019 Data Analytics Workshop"
 output: html_document
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo=TRUE, eval=FALSE)
+knitr::opts_chunk$set(echo=TRUE, eval=FALSE, warning=FALSE, message=FALSE, error=FALSE, comment="")
 ```
 
 # Introduction
 
-First and foremost, thank you for attending my workshop. I can't express enough how much I appreciate you coming. But with that being said, let's get down to business. This book is meant to serve as a supplement to the material you learned in the workshop, as well as a reference manual for while you're in here. It goes over some of the basic commands we used in all three of the programming languages we utilized: Bash, Git, SQL, and R. For each of those programming languages, it highlights some of the common commands that people use, giving a brief description and then generic syntax for how to use it. Each section then concludes with some examples from the workshop that will hopefully help you when you're querying your own data.
+First and foremost, thank you for attending my workshop. I can't express enough how much I appreciate you coming. But with that being said, let's get down to business. This guide is meant to serve as a supplement to the material you learned in the workshop, as well as a reference manual for while you're in here. It goes over some of the basic commands we used in all of the programming languages we utilized: Bash, Git, SQL, and R. For each of those programming languages, it highlights some of the common commands that people use, giving a brief description and then generic syntax for how to use it. Each section then concludes with some examples from the workshop that will hopefully help you when you're querying your own data.
 
 It should go without saying, but I want to explicitly mention it anyway. This document is not meant to be an all-inclusive manual for any of the topics we covered in the workshop. Each topic could make up an entire book on their own. This is meant to simply be a reference guide for you both during the workshop and after. If you have any questions about any of the material that is or is not in the book, please feel free to reach out via email (potent_pwnables@protonmail.com) or Twitter (@potent_pwnables). Thanks again for coming to the workshop!
 
@@ -67,7 +68,7 @@ Creating an array is similar to creating a variable in that you have to give it 
 declare -a my_var=('value 1' 'value 2' ... 'value N')
 ```
 
-### If Statements
+### If statements
 
 If statements are a little trickier in Bash than they are in other programming languages. The first thing that can trip people up is the fact that there must be a space between the `[` and `]` symbols when writing the conditional. The other thing is that not all comparison operators are allowed. So, while you can check something like `10 = 5` and `10 != 5`, you can't check something like `10 > 5` or `10 < 5`. Instead you must use switches inside of the comparison.
 
@@ -82,7 +83,7 @@ then
 fi
 ```
 
-### For Loops
+### For loops
 
 For loops iterate a defined number of times, repeating some action. This is different from while loops, which will loop an undefined number of times until a condition is met. Because for loops execute a defined number of times, they must be given what is called an iterable to loop through. An iterable is anything that could be defined as a collection of items, such as the numbers 1-10, or an array of file names.
 
@@ -101,7 +102,7 @@ done
 
 ## Examples
 
-### Check if a File Exists
+### Check if a file exists
 
 ```{bash}
 if [ ! -f "path/to/my_file" ]
@@ -110,7 +111,7 @@ then
 fi
 ```
 
-### Download the Files from LANL
+### Download the files from LANL
 
 ```{bash}
 # specify the files you want to download
@@ -126,7 +127,7 @@ do
 done
 ```
 
-### Copy Two Columns of Data in dns.txt into a Single Column in computers.txt
+### Copy two columns of data in dns.txt into a single column in computers.txt
 
 ```{bash}
 # awk is a very powerful tool whose explanation is outside the scope of this
@@ -134,7 +135,7 @@ done
 awk -F ',' '{print $2 >> "computers.txt"} {print $3 >> "computers.txt"}' dns.txt
 ```
 
-## Remove Duplicates and Append Row Numbers
+## Remove duplicates and append row numbers
 
 ```{bash}
 declare -a files=('computers', 'user_domains' 'ports' 'processes' 'auth_type' 'auth_orientation' 'logon_type')
@@ -179,7 +180,7 @@ kable(df1, caption="Table 1") %>%
 ```{r, echo=FALSE, eval=TRUE}
 df2 = tibble(var1=2:4, var2=c('d', 'e', 'f'))
 kable(df2, caption="Table 2") %>%
-    kable_styling(bootstrap_options=c('striped', 'hover', 'responsive'), full_width=F, position="float_right")
+    kable_styling(bootstrap_options=c('striped', 'hover', 'responsive'), full_width=F, position="float_left")
 ```
 </div>
 
