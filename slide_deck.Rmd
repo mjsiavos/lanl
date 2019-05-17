@@ -444,12 +444,13 @@ In general, this would be a pretty complex query, primarily because not every us
 SELECT c.*
 FROM (
 	SELECT  a.src_user_domain as user, 
-			b.day
-			MIN(a.time) as start, MAX(a.time) as end
+			    b.day,
+			    MIN(a.time) as start, 
+			    MAX(a.time) as end
 	FROM auths a
 	LEFT JOIN time b
 		ON a.time = b.t_second
-	GROUP BY a.src_comp, b.day
+	GROUP BY a.src_user_domain, b.day
 ) c
 INNER JOIN (
 	SELECT *
